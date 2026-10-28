@@ -16,6 +16,24 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 
+def _validar_matriz_conteos(X, n_features=None):
+    """Valida la forma y los valores de una matriz densa o dispersa de conteos."""
+    if not hasattr(X, "shape") or len(X.shape) != 2 or 0 in X.shape:
+        raise ValueError("X debe ser una matriz no vacía de documentos y términos.")
+    if n_features is not None and X.shape[1] != n_features:
+        raise ValueError(f"X debe tener {n_features} términos, como los datos de entrenamiento.")
+
+    valores = X if isinstance(X, np.ndarray) else getattr(X, "data", None)
+    if valores is None:
+        raise ValueError("X debe ser un array de NumPy o una matriz dispersa numérica.")
+    try:
+        validos = np.isfinite(valores).all() and (valores >= 0).all()
+    except (TypeError, ValueError):
+        validos = False
+    if not validos:
+        raise ValueError("Los conteos deben ser numéricos, finitos y no negativos.")
+
+
 def log_suma_exp(a, axis=1):
     """Calcula log(sum(exp(a))) a lo largo de `axis` sin overflow ni underflow.
 
@@ -60,13 +78,11 @@ class NaiveBayesMultinomial(ClassifierMixin, BaseEstimator):
     def fit(self, X, y):
         """Estima las probabilidades a partir de la matriz de conteos X y las etiquetas y. Devuelve self."""
         y = np.asarray(y)
-        if len(X.shape) != 2 or 0 in X.shape or y.ndim != 1 or X.shape[0] != len(y):
+        _validar_matriz_conteos(X)
+        if y.ndim != 1 or X.shape[0] != len(y):
             raise ValueError("X debe tener documentos y términos, con una etiqueta por documento.")
         if not np.isfinite(self.alpha) or self.alpha < 0:
             raise ValueError("alpha debe ser un número finito no negativo.")
-        valores = X if isinstance(X, np.ndarray) else X.data
-        if not np.isfinite(valores).all() or (valores < 0).any():
-            raise ValueError("Los conteos deben ser finitos y no negativos.")
 
         self.classes_, indices, conteos = np.unique(y, return_inverse=True, return_counts=True)
         self.class_count_ = conteos.astype(float)
@@ -92,6 +108,7 @@ class NaiveBayesMultinomial(ClassifierMixin, BaseEstimator):
         """
         if not hasattr(self, "feature_log_prob_"):
             raise ValueError("Primero entrená el clasificador con fit.")
+        _validar_matriz_conteos(X, self.n_features_in_)
         if self.alpha == 0:
             # Un término ausente no aporta; uno observado con P(t|c)=0 descarta la clase.
             ceros = np.isneginf(self.feature_log_prob_)

@@ -74,6 +74,31 @@ def test_acepta_matrices_dispersas():
     assert list(propio.predict(nuevos)) == ["fraude", "transferencias"]
 
 
+@pytest.mark.parametrize(
+    "X",
+    [
+        np.array([[-1, 0, 0]]),
+        np.array([[np.nan, 0, 0]]),
+        sparse.csr_matrix([[-1, 0, 0]]),
+        sparse.csr_matrix([[np.nan, 0, 0]]),
+    ],
+)
+def test_predict_rechaza_conteos_invalidos(X):
+    modelo = NaiveBayesMultinomial().fit(
+        np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]]), ["a", "b", "c"]
+    )
+    with pytest.raises(ValueError, match="numéricos, finitos y no negativos"):
+        modelo.predict_proba(X)
+
+
+def test_predict_rechaza_un_numero_distinto_de_terminos():
+    modelo = NaiveBayesMultinomial().fit(
+        np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]]), ["a", "b", "c"]
+    )
+    with pytest.raises(ValueError, match="como los datos de entrenamiento"):
+        modelo.predict_proba(np.array([[1, 0]]))
+
+
 def test_probabilidades_validas_y_sin_underflow():
     X, y = datos_aleatorios(semilla=2)
     m = NaiveBayesMultinomial().fit(X, y)
